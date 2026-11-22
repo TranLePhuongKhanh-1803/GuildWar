@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Kiểm tra quyền Admin dựa trên Firebase Auth + collection `admins`
+    // Collection `admins` bị khóa ghi hoàn toàn từ client (chỉ thêm UID Admin trực tiếp trong Firebase Console)
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Kiểm tra sự kiện tuần có đang mở không trước khi cho phép người chơi nộp điểm
+    function isTargetWeekOpen(weekId) {
+      let weekPath = /databases/$(database)/documents/weeks/$(weekId);
+      return exists(weekPath) && get(weekPath).data.isOpen == true;
+    }
+
+    function isValidSubmissionCreate(subId) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id', 'weekId', 'playerName', 'score', 'proofImage', 'status', 'createdAt'])
+        && d.keys().hasOnly(['id', 'weekId', 'playerName', 'score', 'proofImage', 'storagePath', 'status', 'createdAt'])
+        && d.id == subId
+        && d.weekId is string
+        && d.weekId.size() > 0
+        && d.weekId.size() <= 100
+        && d.playerName is string
+        && d.playerName.size() >= 1
+        && d.playerName.size() <= 50
+        && d.score is int
+        && d.score > 0
+        && d.score <= 10000000
+        && d.proofImage is string
+        && d.proofImage.size() > 0
+        && d.proofImage.size() <= 2000
+        && d.proofImage.matches('^https://.*')
+        && (!('storagePath' in d) || d.storagePath == null || (d.storagePath is string && d.storagePath.size() <= 300))
+        && d.status == 'pending'
+        && d.createdAt is string
+        && isTargetWeekOpen(d.weekId);
+    }
+
+    // Danh sách Admin: chỉ chính user đó được đọc để kiểm tra quyền; cấm tuyệt đối mọi ghi từ client
+    match /admins/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Sự kiện hàng tuần & phần thưởng: mọi người được đọc; chỉ Admin mới được tạo/sửa/xóa
+    match /weeks/{weekId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Lượt gửi điểm: mọi người được đọc BXH; người chơi chỉ được tạo lượt `pending` hợp lệ khi tuần đang mở;
+    // chỉ Admin mới được duyệt, từ chối, sửa điểm hoặc xóa
+    match /submissions/{subId} {
+      allow read: if true;
+      allow create: if isValidSubmissionCreate(subId);
+      allow update, delete: if isAdmin();
+    }
+
+    // Chặn mặc định mọi collection khác
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

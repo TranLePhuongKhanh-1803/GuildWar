@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Ảnh minh chứng Guild War:
+    // - Mọi người có thể xem ảnh minh chứng (để kiểm tra BXH minh bạch)
+    // - Chỉ cho phép upload ảnh hợp lệ (image/*, tối đa 5MB) vào thư mục proofs/
+    // - Chỉ Admin đã đăng nhập Firebase Auth mới được xóa hoặc ghi đè
+    match /proofs/{weekId}/{fileName} {
+      allow read: if true;
+      allow create: if request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if request.auth != null;
+    }
+
+    // Chặn mặc định mọi đường dẫn khác
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
