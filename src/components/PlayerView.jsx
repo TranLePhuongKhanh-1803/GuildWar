@@ -91,6 +91,7 @@ export default function PlayerView({ currentWeek, onAddSubmission }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting || isCompressing) return;
     setFeedback(null);
 
     if (!currentWeek.isOpen) {

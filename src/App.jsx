@@ -125,7 +125,7 @@ export default function App() {
         });
         return { ok: true };
       } catch (err) {
-        return { ok: false, error: `Lỗi tải lên Firebase: ${err?.message || 'Thử lại sau.'}` };
+        return { ok: false, error: err?.message || 'Lỗi tải lên Firebase. Vui lòng thử lại.' };
       }
     }
 

@@ -33,6 +33,8 @@ if (isFirebaseConfigured) {
     app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
     db = getFirestore(app);
     storage = getStorage(app);
+    storage.maxUploadRetryTime = 15000;
+    storage.maxOperationRetryTime = 15000;
     auth = getAuth(app);
   } catch (err) {
     firebaseInitError = err;
