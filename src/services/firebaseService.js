@@ -179,12 +179,11 @@ function mapFirestoreWriteError(err) {
   return `Lỗi lưu điểm vào Firestore: ${err?.message || 'Không xác định.'}`;
 }
 
+const USE_FIREBASE_STORAGE = import.meta.env.VITE_ENABLE_FIREBASE_STORAGE === 'true';
+
 export async function addSubmissionFirebase({ weekId, playerName, score, proofImage }) {
   if (!db) {
     throw new Error('Cloud Firestore chưa được khởi tạo.');
-  }
-  if (!storage) {
-    throw new Error('Firebase Storage chưa được cấu hình để lưu URL ảnh minh chứng.');
   }
   if (!weekId) {
     throw new Error('Không xác định được tuần sự kiện hiện tại.');
@@ -194,24 +193,30 @@ export async function addSubmissionFirebase({ weekId, playerName, score, proofIm
   }
 
   const subId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const blob = dataUrlToBlob(proofImage);
-  const storagePath = `proofs/${weekId}/${subId}.jpg`;
-  const storageRef = ref(storage, storagePath);
+  let finalProofImage = proofImage;
+  let storagePath = null;
+  let storageRef = null;
 
-  let imageUrl;
-  try {
-    await withTimeout(
-      uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' }),
-      20000,
-      'Quá thời gian tải ảnh lên Firebase Storage (20 giây). Hãy kiểm tra bạn đã bật Firebase Storage và Publish storage.rules trên Firebase Console chưa.'
-    );
-    imageUrl = await withTimeout(
-      getDownloadURL(storageRef),
-      10000,
-      'Không lấy được URL ảnh sau khi tải lên Firebase Storage.'
-    );
-  } catch (err) {
-    throw new Error(mapStorageError(err));
+  if (USE_FIREBASE_STORAGE && storage) {
+    const blob = dataUrlToBlob(proofImage);
+    storagePath = `proofs/${weekId}/${subId}.jpg`;
+    storageRef = ref(storage, storagePath);
+    try {
+      await withTimeout(
+        uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' }),
+        20000,
+        'Quá thời gian tải ảnh lên Firebase Storage (20 giây).'
+      );
+      finalProofImage = await withTimeout(
+        getDownloadURL(storageRef),
+        10000,
+        'Không lấy được URL ảnh sau khi tải lên Firebase Storage.'
+      );
+    } catch (err) {
+      throw new Error(mapStorageError(err));
+    }
+  } else if (finalProofImage.length > 450000) {
+    throw new Error('Ảnh minh chứng sau khi nén vẫn quá lớn (> 450KB). Vui lòng chọn ảnh nhẹ hơn.');
   }
 
   const payload = {
@@ -219,7 +224,7 @@ export async function addSubmissionFirebase({ weekId, playerName, score, proofIm
     weekId,
     playerName,
     score,
-    proofImage: imageUrl,
+    proofImage: finalProofImage,
     storagePath,
     status: SUBMISSION_STATUS.PENDING,
     createdAt: new Date().toISOString(),
@@ -232,11 +237,12 @@ export async function addSubmissionFirebase({ weekId, playerName, score, proofIm
       'Quá thời gian lưu dữ liệu vào Cloud Firestore (15 giây). Vui lòng thử lại.'
     );
   } catch (err) {
-    // Dọn ảnh vừa upload nếu lưu Firestore thất bại để tránh rác Storage
-    try {
-      await deleteObject(storageRef);
-    } catch {
-      // Bỏ qua nếu không xóa được
+    if (storageRef) {
+      try {
+        await deleteObject(storageRef);
+      } catch {
+        // Bỏ qua nếu không xóa được
+      }
     }
     throw new Error(mapFirestoreWriteError(err));
   }

@@ -35,8 +35,8 @@ service cloud.firestore {
         && d.score <= 10000000
         && d.proofImage is string
         && d.proofImage.size() > 0
-        && d.proofImage.size() <= 2000
-        && d.proofImage.matches('^https://.*')
+        && d.proofImage.size() <= 450000
+        && (d.proofImage.matches('^https://.*') || d.proofImage.matches('^data:image/(jpeg|jpg|png|webp);base64,.*'))
         && (!('storagePath' in d) || d.storagePath == null || (d.storagePath is string && d.storagePath.size() <= 300))
         && d.status == 'pending'
         && d.createdAt is string
