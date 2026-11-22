@@ -1,19 +1,26 @@
-import React from 'react';
-import { Gift, Sparkles, CheckCircle2 } from 'lucide-react';
-import { TOTAL_WEEKLY_GIFTS } from '../constants/config';
+import React, { useState } from 'react';
+import { Gift, Sparkles, CheckCircle2, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
+import { TOTAL_WEEKLY_GIFTS, REWARD_DAYS } from '../constants/config';
 import { formatDateTime } from '../utils/ranking';
+import { generate8DaySchedule } from '../utils/rewardSchedule';
 
 export default function RewardAnnouncement({ rewards, weekTitle }) {
+  const [showSchedule, setShowSchedule] = useState(true);
+
   if (!rewards?.confirmed || !rewards?.recipients?.length) return null;
 
   const totalGifts = rewards.recipients.reduce((acc, r) => acc + (Number(r.gifts) || 0), 0);
+  const dailySchedule =
+    Array.isArray(rewards.dailySchedule) && rewards.dailySchedule.length > 0
+      ? rewards.dailySchedule
+      : generate8DaySchedule(rewards.recipients, REWARD_DAYS);
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#191b42] via-[#1b143b] to-[#121c3d] border border-amber-400/40 shadow-glow-gold p-5 sm:p-6">
+    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#191b42] via-[#1b143b] to-[#121c3d] border border-amber-400/40 shadow-glow-gold p-5 sm:p-6 space-y-5">
       <div className="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
       <div className="absolute -left-12 -bottom-12 w-44 h-44 rounded-full bg-purple-500/15 blur-2xl pointer-events-none" />
 
-      <div className="relative flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 shadow-glow-gold">
             <Gift className="w-6 h-6" />
@@ -26,19 +33,32 @@ export default function RewardAnnouncement({ rewards, weekTitle }) {
               <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
             </div>
             <p className="text-xs sm:text-sm text-slate-300">
-              {weekTitle} • Tổng cộng {totalGifts}/{TOTAL_WEEKLY_GIFTS} phần quà cho {rewards.recipients.length} thành viên
+              {weekTitle} • Tổng cộng {totalGifts}/{TOTAL_WEEKLY_GIFTS} phần quà cho{' '}
+              {rewards.recipients.length} thành viên ({REWARD_DAYS} ngày)
             </p>
           </div>
         </div>
 
-        {rewards.confirmedAt && (
-          <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Đã xác nhận: {formatDateTime(rewards.confirmedAt)}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {rewards.confirmedAt && (
+            <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Đã xác nhận: {formatDateTime(rewards.confirmedAt)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowSchedule((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-400/30 transition"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Lịch {REWARD_DAYS} ngày
+            {showSchedule ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
 
+      {/* 5 Recipients Summary */}
       <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {rewards.recipients.map((rec, idx) => (
           <div
@@ -60,6 +80,50 @@ export default function RewardAnnouncement({ rewards, weekTitle }) {
           </div>
         ))}
       </div>
+
+      {/* 8-Day Schedule */}
+      {showSchedule && (
+        <div className="relative pt-3 border-t border-amber-400/20 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-300">
+            <CalendarDays className="w-4 h-4" />
+            Lịch Phát Quà Chi Tiết {REWARD_DAYS} Ngày
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {dailySchedule.map((dayItem) => (
+              <div
+                key={dayItem.day}
+                className="rounded-xl bg-slate-950/70 border border-indigo-500/30 p-3 space-y-2"
+              >
+                <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                  <span className="font-display font-bold text-sm text-sky-300">
+                    {dayItem.label}
+                  </span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/15 text-amber-300">
+                    {dayItem.totalGifts} quà
+                  </span>
+                </div>
+                {dayItem.allocations.length === 0 ? (
+                  <p className="text-xs text-slate-500">Không có quà</p>
+                ) : (
+                  <ul className="space-y-1 text-xs">
+                    {dayItem.allocations.map((alloc, aIdx) => (
+                      <li
+                        key={`${alloc.playerName}-${aIdx}`}
+                        className="flex items-center justify-between gap-2 text-slate-200"
+                      >
+                        <span className="truncate">{alloc.playerName}</span>
+                        <span className="font-display font-bold text-amber-300 shrink-0">
+                          +{alloc.gifts}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
