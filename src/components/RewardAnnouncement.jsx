@@ -58,8 +58,12 @@ export default function RewardAnnouncement({ rewards, weekTitle }) {
         </div>
       </div>
 
-      {/* 5 Recipients Summary */}
-      <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* Recipients Summary */}
+      <div
+        className={`relative grid grid-cols-1 sm:grid-cols-2 ${
+          rewards.recipients.length <= 5 ? 'lg:grid-cols-5' : 'md:grid-cols-3 lg:grid-cols-6'
+        } gap-3`}
+      >
         {rewards.recipients.map((rec, idx) => (
           <div
             key={`${rec.playerName}-${idx}`}
